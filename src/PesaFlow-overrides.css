@@ -1,0 +1,82 @@
+/* PesaFlow accessibility and profile-menu improvements */
+:root {
+  --pf-readable: #304767;
+  --pf-muted: #5e7391;
+}
+body, .app-shell {
+  color: var(--pf-readable);
+}
+.nav-label, .breadcrumb, .current-date, .subtitle, .card-heading,
+.card-foot, .panel-heading p, .chart-legend, .chart-months,
+.chart-note, .category-list, .date-cell, .table-footer,
+.profile-info span, .help-card p, .settings-note, .report-note p {
+  color: var(--pf-muted) !important;
+}
+.nav-item { color: #526987 !important; }
+.nav-item.active { color: #2868e8 !important; }
+.nav-icon { color: #58769d; }
+.transaction-table th { color: #5a6f8d !important; }
+.transaction-table td { color: #344b6b; }
+.profile { position: relative; }
+.profile-menu {
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  color: #41618b;
+  background: transparent;
+  padding: 8px;
+  border-radius: 10px;
+}
+.profile-menu:hover, .profile-menu:focus-visible {
+  background: #dce8f8;
+  outline: 2px solid #8eb5ff;
+}
+.profile-dropdown {
+  position: absolute;
+  z-index: 30;
+  bottom: calc(100% + 10px);
+  right: 0;
+  width: 205px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 15px;
+  border: 1px solid rgba(255,255,255,.9);
+  border-radius: 16px;
+  background: #edf4ff;
+  box-shadow: 8px 8px 22px #cbd8eb, -8px -8px 22px #fff;
+}
+.profile-dropdown strong { color: #203b60; }
+.profile-dropdown span { color: #5e7391; font-size: 12px; }
+.profile-dropdown button, .logout-settings-button {
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-top: 5px;
+  text-align: left;
+  cursor: pointer;
+  color: #b83245;
+  background: #f8e8ec;
+  font: inherit;
+  font-weight: 700;
+}
+.profile-dropdown button:hover, .logout-settings-button:hover { background: #f2d5dc; }
+.donut-chart { background-color: #d7e2f3; }
+.category-color { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 9px; }
+.logout-modal > p { color: #526987; line-height: 1.6; }
+.logout-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
+.secondary-button {
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 18px;
+  color: #344b6b;
+  background: #e1ebf9;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+.logout-settings-button { margin-top: 16px; }
+@media (max-width: 600px) {
+  .profile-dropdown { right: 0; }
+  .logout-actions { flex-wrap: wrap; }
+}
