@@ -40,6 +40,14 @@ const formatTransactionDate = (date = new Date()) =>
     year: 'numeric',
   })
 
+const formatDateForInput = (date = new Date()) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+
+  return `${year}-${month}-${day}`
+}
+
 function App() {
   const [transactions, setTransactions] = useState(initialTransactions)
   const [activePage, setActivePage] = useState('Dashboard')
@@ -51,6 +59,7 @@ function App() {
   const [form, setForm] = useState({
     title: '',
     category: 'Food',
+    date: formatDateForInput(),
     amount: '',
     type: 'expense',
   })
@@ -234,6 +243,7 @@ function App() {
 
     if (
       !form.title.trim() ||
+      !form.date ||
       !Number.isFinite(amount) ||
       amount <= 0
     ) {
@@ -245,7 +255,9 @@ function App() {
         id: Date.now(),
         title: form.title.trim(),
         category: form.category,
-        date: formatTransactionDate(),
+        date: formatTransactionDate(
+          new Date(`${form.date}T12:00:00`),
+        ),
         amount,
         type: form.type,
         icon: form.type === 'income' ? '💵' : '💳',
@@ -256,6 +268,7 @@ function App() {
     setForm({
       title: '',
       category: 'Food',
+      date: formatDateForInput(),
       amount: '',
       type: 'expense',
     })
@@ -915,6 +928,24 @@ function App() {
                   <option key={category}>{category}</option>
                 ))}
               </select>
+
+              <label
+                className="form-label"
+                htmlFor="transaction-date"
+              >
+                Transaction date
+              </label>
+
+              <input
+                id="transaction-date"
+                className="form-input"
+                type="date"
+                required
+                value={form.date}
+                onChange={(event) =>
+                  setForm({ ...form, date: event.target.value })
+                }
+              />
 
               <label
                 className="form-label"
