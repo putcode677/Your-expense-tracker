@@ -1,13 +1,18 @@
-
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import './PesaFlow-overrides.css'
 
+const STORAGE_KEY = 'pesaflow-transactions'
+
+const expenseCategories = ['Food', 'Transport', 'Bills', 'Shopping', 'Other']
+const incomeCategories = ['Salary', 'Business', 'Other']
+
+// Dates are stored as ISO strings (YYYY-MM-DD) and only formatted for display.
 const initialTransactions = [
-  { id: 1, title: 'Monthly salary', category: 'Salary', date: 'Oct 01, 2026', amount: 2000000, type: 'income', icon: '💰' },
-  { id: 2, title: 'Grocery shopping', category: 'Food', date: 'Oct 03, 2026', amount: 85000, type: 'expense', icon: '🛒' },
-  { id: 3, title: 'Transport', category: 'Transport', date: 'Oct 05, 2026', amount: 25000, type: 'expense', icon: '🚕' },
-  { id: 4, title: 'Internet bill', category: 'Bills', date: 'Oct 07, 2026', amount: 60000, type: 'expense', icon: '📶' },
+  { id: 1, title: 'Monthly salary', category: 'Salary', date: '2026-10-01', amount: 2000000, type: 'income', icon: '💰' },
+  { id: 2, title: 'Grocery shopping', category: 'Food', date: '2026-10-03', amount: 85000, type: 'expense', icon: '🛒' },
+  { id: 3, title: 'Transport', category: 'Transport', date: '2026-10-05', amount: 25000, type: 'expense', icon: '🚕' },
+  { id: 4, title: 'Internet bill', category: 'Bills', date: '2026-10-07', amount: 60000, type: 'expense', icon: '📶' },
 ]
 
 const money = (amount) =>
@@ -15,7 +20,16 @@ const money = (amount) =>
     style: 'currency',
     currency: 'TZS',
     maximumFractionDigits: 0,
-  }).format(amount).replace('TZS', 'TSh')
+  })
+    .format(amount)
+    .replace('TZS', 'TSh')
+    .replace(/\u00a0/g, ' ')
+
+const compactNumber = (amount) =>
+  new Intl.NumberFormat('en', {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(amount)
 
 const getGreeting = (date = new Date()) => {
   const hour = date.getHours()
@@ -23,7 +37,6 @@ const getGreeting = (date = new Date()) => {
   if (hour >= 5 && hour < 12) return 'Good morning'
   if (hour >= 12 && hour < 17) return 'Good afternoon'
   if (hour >= 17 && hour < 21) return 'Good evening'
-
   return 'Good night'
 }
 
@@ -33,12 +46,19 @@ const formatDate = (date = new Date()) =>
     year: 'numeric',
   })
 
-const formatTransactionDate = (date = new Date()) =>
-  date.toLocaleDateString('en-US', {
+const parseISODate = (iso) => new Date(`${iso}T12:00:00`)
+
+const formatTransactionDate = (iso) => {
+  const parsed = parseISODate(iso)
+
+  if (Number.isNaN(parsed.getTime())) return iso
+
+  return parsed.toLocaleDateString('en-US', {
     month: 'short',
     day: '2-digit',
     year: 'numeric',
   })
+}
 
 const formatDateForInput = (date = new Date()) => {
   const year = date.getFullYear()
@@ -48,25 +68,104 @@ const formatDateForInput = (date = new Date()) => {
   return `${year}-${month}-${day}`
 }
 
+const loadTransactions = () => {
+  try {
+    const saved = window.localStorage.getItem(STORAGE_KEY)
+
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      if (Array.isArray(parsed)) return parsed
+    }
+  } catch {
+    // Storage unavailable or corrupted: fall back to the demo data.
+  }
+
+  return initialTransactions
+}
+
+const emptyForm = () => ({
+  title: '',
+  category: 'Food',
+  date: formatDateForInput(),
+  amount: '',
+  type: 'expense',
+})
+
 function App() {
-  const [transactions, setTransactions] = useState(initialTransactions)
+  const [transactions, setTransactions] = useState(loadTransactions)
   const [activePage, setActivePage] = useState('Dashboard')
   const [showForm, setShowForm] = useState(false)
   const [search, setSearch] = useState('')
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
+  const [notice, setNotice] = useState('')
+  const [form, setForm] = useState(emptyForm)
 
-  const [form, setForm] = useState({
-    title: '',
-    category: 'Food',
-    date: formatDateForInput(),
-    amount: '',
-    type: 'expense',
-  })
+  const profileRef = useRef(null)
 
   const now = new Date()
   const currentMonth = now.getMonth()
   const currentYear = now.getFullYear()
+
+  // Save transactions so they survive a page refresh.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(transactions),
+      )
+    } catch {
+      // Ignore storage errors (private mode, quota, etc.).
+    }
+  }, [transactions])
+
+  // Close menus and dialogs with the Escape key.
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (event.key !== 'Escape') return
+
+      setShowForm(false)
+      setShowLogoutConfirm(false)
+      setShowProfileMenu(false)
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  // Close the profile menu when clicking outside of it.
+  useEffect(() => {
+    if (!showProfileMenu) return undefined
+
+    function handleClick(event) {
+      if (
+        profileRef.current &&
+        !profileRef.current.contains(event.target)
+      ) {
+        setShowProfileMenu(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showProfileMenu])
+
+  // Hide the in-app notice automatically.
+  useEffect(() => {
+    if (!notice) return undefined
+
+    const timer = window.setTimeout(() => setNotice(''), 5000)
+    return () => window.clearTimeout(timer)
+  }, [notice])
+
+  const sortedTransactions = useMemo(
+    () =>
+      [...transactions].sort((a, b) => {
+        if (a.date !== b.date) return a.date < b.date ? 1 : -1
+        return b.id - a.id
+      }),
+    [transactions],
+  )
 
   const totals = useMemo(() => {
     const income = transactions
@@ -84,25 +183,25 @@ function App() {
     }
   }, [transactions])
 
-  const filteredTransactions = transactions.filter((item) =>
+  const filteredTransactions = sortedTransactions.filter((item) =>
     `${item.title} ${item.category}`
       .toLowerCase()
       .includes(search.toLowerCase()),
   )
 
+  // The dashboard only shows the latest 5; the other pages show everything.
+  const visibleTransactions =
+    activePage === 'Dashboard'
+      ? filteredTransactions.slice(0, 5)
+      : filteredTransactions
+
   const monthlyChart = useMemo(() => {
     const months = Array.from({ length: 6 }, (_, index) => {
-      const date = new Date(
-        currentYear,
-        currentMonth - 5 + index,
-        1,
-      )
+      const date = new Date(currentYear, currentMonth - 5 + index, 1)
 
       return {
         key: `${date.getFullYear()}-${date.getMonth()}`,
-        label: date.toLocaleDateString('en-US', {
-          month: 'short',
-        }),
+        label: date.toLocaleDateString('en-US', { month: 'short' }),
         year: date.getFullYear(),
         month: date.getMonth(),
         income: 0,
@@ -111,7 +210,7 @@ function App() {
     })
 
     transactions.forEach((item) => {
-      const parsed = new Date(item.date)
+      const parsed = parseISODate(item.date)
 
       if (Number.isNaN(parsed.getTime())) return
 
@@ -122,28 +221,20 @@ function App() {
       )
 
       if (bucket) {
-        const key =
-          item.type === 'income' ? 'income' : 'expenses'
-
+        const key = item.type === 'income' ? 'income' : 'expenses'
         bucket[key] += item.amount
       }
     })
 
     const max = Math.max(
       1,
-      ...months.flatMap((month) => [
-        month.income,
-        month.expenses,
-      ]),
+      ...months.flatMap((month) => [month.income, month.expenses]),
     )
 
     const points = (key) =>
       months.map((month, index) => {
         const x =
-          months.length === 1
-            ? 300
-            : index * (600 / (months.length - 1))
-
+          months.length === 1 ? 300 : index * (600 / (months.length - 1))
         const y = 170 - (month[key] / max) * 145
 
         return { x, y }
@@ -165,16 +256,11 @@ function App() {
     }
   }, [transactions, currentMonth, currentYear])
 
-  // Calculate expense categories without mutating render-time variables.
   const categorySummary = useMemo(() => {
-    const expenses = transactions.filter(
-      (item) => item.type === 'expense',
-    )
+    const expenses = transactions.filter((item) => item.type === 'expense')
 
     const totalsByCategory = expenses.reduce((result, item) => {
-      result[item.category] =
-        (result[item.category] || 0) + item.amount
-
+      result[item.category] = (result[item.category] || 0) + item.amount
       return result
     }, {})
 
@@ -182,10 +268,7 @@ function App() {
       (a, b) => b[1] - a[1],
     )
 
-    const total = entries.reduce(
-      (sum, [, amount]) => sum + amount,
-      0,
-    )
+    const total = entries.reduce((sum, [, amount]) => sum + amount, 0)
 
     const colors = [
       '#4385f5',
@@ -197,8 +280,7 @@ function App() {
     ]
 
     const segments = entries.map(([category, amount], index) => {
-      const percent =
-        total > 0 ? (amount / total) * 100 : 0
+      const percent = total > 0 ? (amount / total) * 100 : 0
 
       const offset =
         total > 0
@@ -229,12 +311,24 @@ function App() {
           .join(', ')})`
       : 'conic-gradient(#d7e2f3 0% 100%)'
 
-    return {
-      entries: segments,
-      gradient,
-      total,
-    }
+    return { entries: segments, gradient, total }
   }, [transactions])
+
+  const formCategories =
+    form.type === 'income' ? incomeCategories : expenseCategories
+
+  function changeFormType(type) {
+    setForm((current) => ({
+      ...current,
+      type,
+      category: type === 'income' ? 'Salary' : 'Food',
+    }))
+  }
+
+  function openForm() {
+    setForm(emptyForm())
+    setShowForm(true)
+  }
 
   function addTransaction(event) {
     event.preventDefault()
@@ -255,9 +349,7 @@ function App() {
         id: Date.now(),
         title: form.title.trim(),
         category: form.category,
-        date: formatTransactionDate(
-          new Date(`${form.date}T12:00:00`),
-        ),
+        date: form.date,
         amount,
         type: form.type,
         icon: form.type === 'income' ? '💵' : '💳',
@@ -265,15 +357,14 @@ function App() {
       ...current,
     ])
 
-    setForm({
-      title: '',
-      category: 'Food',
-      date: formatDateForInput(),
-      amount: '',
-      type: 'expense',
-    })
-
+    setForm(emptyForm())
     setShowForm(false)
+    setNotice('Transaction saved.')
+  }
+
+  function deleteTransaction(id) {
+    setTransactions((current) => current.filter((item) => item.id !== id))
+    setNotice('Transaction deleted.')
   }
 
   const navigation = [
@@ -289,8 +380,7 @@ function App() {
     setShowProfileMenu(false)
     setActivePage('Dashboard')
     setSearch('')
-
-    window.alert(
+    setNotice(
       'You have left this PesaFlow demo. Real account sign-out will be added when authentication is connected.',
     )
   }
@@ -303,7 +393,7 @@ function App() {
           href="#dashboard"
           onClick={() => setActivePage('Dashboard')}
         >
-          <span className="brand-icon">₮</span>
+          <span className="brand-icon">P</span>
           <span>
             Pesa<span className="brand-light">Flow</span>
           </span>
@@ -318,15 +408,14 @@ function App() {
               className={`nav-item ${
                 activePage === item.name ? 'active' : ''
               }`}
+              aria-current={activePage === item.name ? 'page' : undefined}
               onClick={() => setActivePage(item.name)}
             >
               <span className="nav-icon">{item.icon}</span>
               {item.name}
 
               {item.name === 'Transactions' && (
-                <span className="nav-count">
-                  {transactions.length}
-                </span>
+                <span className="nav-count">{transactions.length}</span>
               )}
             </button>
           ))}
@@ -339,7 +428,7 @@ function App() {
             <p>Small steps lead to big financial goals.</p>
           </div>
 
-          <div className="profile">
+          <div className="profile" ref={profileRef}>
             <div className="avatar">P</div>
 
             <div className="profile-info">
@@ -351,9 +440,7 @@ function App() {
               className="profile-menu"
               aria-label="Open account menu"
               aria-expanded={showProfileMenu}
-              onClick={() =>
-                setShowProfileMenu((open) => !open)
-              }
+              onClick={() => setShowProfileMenu((open) => !open)}
             >
               •••
             </button>
@@ -384,20 +471,7 @@ function App() {
           </div>
 
           <div className="topbar-right">
-            <span className="current-date">
-              ◷ &nbsp; {formatDate()}
-            </span>
-
-            <button
-              className="icon-button"
-              aria-label="Account menu"
-              aria-expanded={showProfileMenu}
-              onClick={() =>
-                setShowProfileMenu((open) => !open)
-              }
-            >
-              ♧
-            </button>
+            <span className="current-date">◷ &nbsp; {formatDate()}</span>
           </div>
         </header>
 
@@ -419,24 +493,30 @@ function App() {
               </p>
             </div>
 
-            <button
-              className="primary-button"
-              onClick={() => setShowForm(true)}
-            >
+            <button className="primary-button" onClick={openForm}>
               <span>＋</span> Add transaction
             </button>
           </div>
 
-          {(activePage === 'Dashboard' ||
-            activePage === 'Reports') && (
+          {notice && (
+            <div className="toast" role="status">
+              <span>{notice}</span>
+              <button
+                aria-label="Dismiss message"
+                onClick={() => setNotice('')}
+              >
+                ×
+              </button>
+            </div>
+          )}
+
+          {(activePage === 'Dashboard' || activePage === 'Reports') && (
             <>
               <section className="summary-grid">
                 <article className="summary-card balance-card">
                   <div className="card-heading">
                     <span>Total balance</span>
-                    <span className="summary-icon blue-icon">
-                      ◈
-                    </span>
+                    <span className="summary-icon blue-icon">◈</span>
                   </div>
 
                   <h2>{money(totals.balance)}</h2>
@@ -446,15 +526,13 @@ function App() {
                     Available balance
                   </div>
 
-                  <div className="balance-decoration">₮</div>
+                  <div className="balance-decoration">P</div>
                 </article>
 
                 <article className="summary-card">
                   <div className="card-heading">
                     <span>Total income</span>
-                    <span className="summary-icon green-icon">
-                      ↙
-                    </span>
+                    <span className="summary-icon green-icon">↙</span>
                   </div>
 
                   <h2>{money(totals.income)}</h2>
@@ -472,9 +550,7 @@ function App() {
                 <article className="summary-card">
                   <div className="card-heading">
                     <span>Total expenses</span>
-                    <span className="summary-icon orange-icon">
-                      ↗
-                    </span>
+                    <span className="summary-icon orange-icon">↗</span>
                   </div>
 
                   <h2>{money(totals.expenses)}</h2>
@@ -495,14 +571,10 @@ function App() {
                   <div className="panel-heading">
                     <div>
                       <h3>Spending overview</h3>
-                      <p>
-                        Income and expenses from your transactions
-                      </p>
+                      <p>Income and expenses from your transactions</p>
                     </div>
 
-                    <span className="period-pill">
-                      Last 6 months
-                    </span>
+                    <span className="period-pill">Last 6 months</span>
                   </div>
 
                   <div className="chart-legend">
@@ -519,14 +591,11 @@ function App() {
 
                   <div className="chart-area">
                     {[0, 1, 2, 3, 4].map((value) => (
-                      <div
-                        className="chart-gridline"
-                        key={value}
-                      >
+                      <div className="chart-gridline" key={value}>
                         <span>
-                          {money(
+                          {compactNumber(
                             (monthlyChart.max * (4 - value)) / 4,
-                          ).replace('TSh ', '')}
+                          )}
                         </span>
                         <i />
                       </div>
@@ -539,11 +608,6 @@ function App() {
                       role="img"
                       aria-label="Income and expense totals for the last six months"
                     >
-                      <path
-                        d={`${monthlyChart.incomePath} L600 190 L0 190 Z`}
-                        fill="url(#incomeFill)"
-                      />
-
                       <defs>
                         <linearGradient
                           id="incomeFill"
@@ -566,12 +630,18 @@ function App() {
                       </defs>
 
                       <path
+                        d={`${monthlyChart.incomePath} L600 190 L0 190 Z`}
+                        fill="url(#incomeFill)"
+                      />
+
+                      <path
                         d={monthlyChart.incomePath}
                         fill="none"
                         stroke="#4385f5"
                         strokeWidth="3"
                         strokeLinecap="round"
                         strokeLinejoin="round"
+                        vectorEffect="non-scaling-stroke"
                       />
 
                       <path
@@ -581,22 +651,20 @@ function App() {
                         strokeWidth="3"
                         strokeLinecap="round"
                         strokeLinejoin="round"
+                        vectorEffect="non-scaling-stroke"
                       />
                     </svg>
                   </div>
 
                   <div className="chart-months">
                     {monthlyChart.months.map((month) => (
-                      <span key={month.key}>
-                        {month.label}
-                      </span>
+                      <span key={month.key}>{month.label}</span>
                     ))}
                   </div>
 
                   <p className="chart-note">
                     Based on the dates and amounts of your recorded
-                    transactions. Months without entries show zero
-                    activity.
+                    transactions. Months without entries show zero activity.
                   </p>
                 </article>
 
@@ -613,15 +681,11 @@ function App() {
                   <div className="donut-wrap">
                     <div
                       className="donut-chart"
-                      style={{
-                        background: categorySummary.gradient,
-                      }}
+                      style={{ background: categorySummary.gradient }}
                     >
                       <div className="donut-center">
                         <span>Total spent</span>
-                        <strong>
-                          {money(totals.expenses)}
-                        </strong>
+                        <strong>{money(totals.expenses)}</strong>
                       </div>
                     </div>
                   </div>
@@ -638,9 +702,7 @@ function App() {
                             {item.category}
                           </span>
 
-                          <strong>
-                            {Math.round(item.percent)}%
-                          </strong>
+                          <strong>{Math.round(item.percent)}%</strong>
                         </div>
                       ))
                     ) : (
@@ -649,8 +711,7 @@ function App() {
                   </div>
 
                   <p className="chart-note">
-                    Percentages are calculated from your recorded
-                    expenses.
+                    Percentages are calculated from your recorded expenses.
                   </p>
                 </article>
               </section>
@@ -660,12 +721,10 @@ function App() {
           {activePage === 'Settings' && (
             <section className="panel settings-panel">
               <h3>Personal preferences</h3>
-              <p>
-                Welcome to your personal finance workspace, Pascal.
-              </p>
+              <p>Welcome to your personal finance workspace, Pascal.</p>
               <p className="settings-note">
-                Account preferences and currency options will be
-                added in a future step.
+                Account preferences and currency options will be added in a
+                future step.
               </p>
 
               <button
@@ -686,7 +745,9 @@ function App() {
                   <h3>
                     {activePage === 'Receipts'
                       ? 'Receipt-ready transactions'
-                      : 'Recent transactions'}
+                      : activePage === 'Dashboard'
+                        ? 'Recent transactions'
+                        : 'All transactions'}
                   </h3>
 
                   <p>
@@ -704,18 +765,18 @@ function App() {
                       aria-label="Search transactions"
                       placeholder="Search..."
                       value={search}
-                      onChange={(event) =>
-                        setSearch(event.target.value)
-                      }
+                      onChange={(event) => setSearch(event.target.value)}
                     />
                   </label>
 
-                  <button
-                    className="text-button"
-                    onClick={() => setActivePage('Transactions')}
-                  >
-                    View all ↗
-                  </button>
+                  {activePage === 'Dashboard' && (
+                    <button
+                      className="text-button"
+                      onClick={() => setActivePage('Transactions')}
+                    >
+                      View all ↗
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -728,11 +789,14 @@ function App() {
                       <th>DATE</th>
                       <th>AMOUNT</th>
                       <th>TYPE</th>
+                      <th>
+                        <span className="sr-only">ACTIONS</span>
+                      </th>
                     </tr>
                   </thead>
 
                   <tbody>
-                    {filteredTransactions.map((item) => (
+                    {visibleTransactions.map((item) => (
                       <tr key={item.id}>
                         <td>
                           <div className="transaction-name">
@@ -750,7 +814,7 @@ function App() {
                         </td>
 
                         <td className="date-cell">
-                          {item.date}
+                          {formatTransactionDate(item.date)}
                         </td>
 
                         <td
@@ -765,18 +829,26 @@ function App() {
                         </td>
 
                         <td>
-                          <span
-                            className={`type-pill ${item.type}`}
-                          >
+                          <span className={`type-pill ${item.type}`}>
                             {item.type}
                           </span>
+                        </td>
+
+                        <td>
+                          <button
+                            className="delete-button"
+                            aria-label={`Delete ${item.title}`}
+                            onClick={() => deleteTransaction(item.id)}
+                          >
+                            🗑
+                          </button>
                         </td>
                       </tr>
                     ))}
 
-                    {filteredTransactions.length === 0 && (
+                    {visibleTransactions.length === 0 && (
                       <tr>
-                        <td colSpan="5" className="empty-state">
+                        <td colSpan="6" className="empty-state">
                           No transactions found.
                         </td>
                       </tr>
@@ -787,7 +859,7 @@ function App() {
 
               <div className="table-footer">
                 <span>
-                  Showing {filteredTransactions.length} of{' '}
+                  Showing {visibleTransactions.length} of{' '}
                   {transactions.length} transactions
                 </span>
 
@@ -802,8 +874,8 @@ function App() {
             <section className="panel report-note">
               <h3>Monthly report</h3>
               <p>
-                Your current income, expenses and balance are
-                calculated from the transactions above.
+                Your current income, expenses and balance are calculated
+                from your recorded transactions.
               </p>
             </section>
           )}
@@ -818,10 +890,7 @@ function App() {
       </main>
 
       {showForm && (
-        <div
-          className="modal-backdrop"
-          onClick={() => setShowForm(false)}
-        >
+        <div className="modal-backdrop" onClick={() => setShowForm(false)}>
           <section
             className="transaction-modal"
             role="dialog"
@@ -845,21 +914,15 @@ function App() {
             </div>
 
             <form onSubmit={addTransaction}>
-              <label className="form-label">
-                Transaction type
-              </label>
+              <label className="form-label">Transaction type</label>
 
               <div className="type-selector">
                 <button
                   type="button"
                   className={
-                    form.type === 'expense'
-                      ? 'selected expense-select'
-                      : ''
+                    form.type === 'expense' ? 'selected expense-select' : ''
                   }
-                  onClick={() =>
-                    setForm({ ...form, type: 'expense' })
-                  }
+                  onClick={() => changeFormType('expense')}
                 >
                   ↗ Expense
                 </button>
@@ -867,22 +930,15 @@ function App() {
                 <button
                   type="button"
                   className={
-                    form.type === 'income'
-                      ? 'selected income-select'
-                      : ''
+                    form.type === 'income' ? 'selected income-select' : ''
                   }
-                  onClick={() =>
-                    setForm({ ...form, type: 'income' })
-                  }
+                  onClick={() => changeFormType('income')}
                 >
                   ↙ Income
                 </button>
               </div>
 
-              <label
-                className="form-label"
-                htmlFor="transaction-name"
-              >
+              <label className="form-label" htmlFor="transaction-name">
                 Description
               </label>
 
@@ -890,6 +946,7 @@ function App() {
                 id="transaction-name"
                 className="form-input"
                 required
+                autoFocus
                 maxLength="80"
                 placeholder="e.g. Lunch, salary..."
                 value={form.title}
@@ -898,10 +955,7 @@ function App() {
                 }
               />
 
-              <label
-                className="form-label"
-                htmlFor="transaction-category"
-              >
+              <label className="form-label" htmlFor="transaction-category">
                 Category
               </label>
 
@@ -910,29 +964,15 @@ function App() {
                 className="form-input"
                 value={form.category}
                 onChange={(event) =>
-                  setForm({
-                    ...form,
-                    category: event.target.value,
-                  })
+                  setForm({ ...form, category: event.target.value })
                 }
               >
-                {[
-                  'Food',
-                  'Transport',
-                  'Bills',
-                  'Shopping',
-                  'Salary',
-                  'Business',
-                  'Other',
-                ].map((category) => (
+                {formCategories.map((category) => (
                   <option key={category}>{category}</option>
                 ))}
               </select>
 
-              <label
-                className="form-label"
-                htmlFor="transaction-date"
-              >
+              <label className="form-label" htmlFor="transaction-date">
                 Transaction date
               </label>
 
@@ -947,10 +987,7 @@ function App() {
                 }
               />
 
-              <label
-                className="form-label"
-                htmlFor="transaction-amount"
-              >
+              <label className="form-label" htmlFor="transaction-amount">
                 Amount (TSh)
               </label>
 
@@ -964,17 +1001,11 @@ function App() {
                 placeholder="Enter amount"
                 value={form.amount}
                 onChange={(event) =>
-                  setForm({
-                    ...form,
-                    amount: event.target.value,
-                  })
+                  setForm({ ...form, amount: event.target.value })
                 }
               />
 
-              <button
-                className="primary-button modal-submit"
-                type="submit"
-              >
+              <button className="primary-button modal-submit" type="submit">
                 Save transaction
               </button>
             </form>
@@ -1010,8 +1041,8 @@ function App() {
             </div>
 
             <p>
-              Your current session is only a local demo. Do you
-              want to leave this demo screen?
+              Your current session is only a local demo. Do you want to
+              leave this demo screen?
             </p>
 
             <div className="logout-actions">
@@ -1022,10 +1053,7 @@ function App() {
                 Cancel
               </button>
 
-              <button
-                className="primary-button"
-                onClick={handleLogout}
-              >
+              <button className="primary-button" onClick={handleLogout}>
                 Yes, log out
               </button>
             </div>
