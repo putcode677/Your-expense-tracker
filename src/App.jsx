@@ -100,6 +100,7 @@ function App() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [notice, setNotice] = useState('')
   const [form, setForm] = useState(emptyForm)
+  const [activeMonth, setActiveMonth] = useState(null)
 
   const profileRef = useRef(null)
 
@@ -231,30 +232,12 @@ function App() {
       ...months.flatMap((month) => [month.income, month.expenses]),
     )
 
-    const points = (key) =>
-      months.map((month, index) => {
-        const x =
-          months.length === 1 ? 300 : index * (600 / (months.length - 1))
-        const y = 170 - (month[key] / max) * 145
-
-        return { x, y }
-      })
-
-    const path = (key) =>
-      points(key)
-        .map(
-          (point, index) =>
-            `${index === 0 ? 'M' : 'L'}${point.x} ${point.y}`,
-        )
-        .join(' ')
-
-    return {
-      months,
-      max,
-      incomePath: path('income'),
-      expensePath: path('expenses'),
-    }
+    return { months, max }
   }, [transactions, currentMonth, currentYear])
+
+  const selectedMonth =
+    monthlyChart.months.find((month) => month.key === activeMonth) ||
+    monthlyChart.months[monthlyChart.months.length - 1]
 
   const categorySummary = useMemo(() => {
     const expenses = transactions.filter((item) => item.type === 'expense')
@@ -589,77 +572,74 @@ function App() {
                     </span>
                   </div>
 
-                  <div className="chart-area">
-                    {[0, 1, 2, 3, 4].map((value) => (
-                      <div className="chart-gridline" key={value}>
-                        <span>
-                          {compactNumber(
-                            (monthlyChart.max * (4 - value)) / 4,
-                          )}
-                        </span>
-                        <i />
-                      </div>
-                    ))}
+                  <div
+                    className="bar-chart"
+                    role="group"
+                    aria-label="Income and expenses for the last six months"
+                  >
+                    <div className="bar-grid">
+                      {[4, 3, 2, 1, 0].map((step) => (
+                        <div className="bar-gridline" key={step}>
+                          <span>
+                            {compactNumber((monthlyChart.max * step) / 4)}
+                          </span>
+                          <i />
+                        </div>
+                      ))}
+                    </div>
 
-                    <svg
-                      className="line-chart"
-                      viewBox="0 0 600 190"
-                      preserveAspectRatio="none"
-                      role="img"
-                      aria-label="Income and expense totals for the last six months"
-                    >
-                      <defs>
-                        <linearGradient
-                          id="incomeFill"
-                          x1="0"
-                          x2="0"
-                          y1="0"
-                          y2="1"
+                    <div className="bar-columns">
+                      {monthlyChart.months.map((month) => (
+                        <button
+                          type="button"
+                          key={month.key}
+                          className={`bar-column ${
+                            selectedMonth.key === month.key ? 'active' : ''
+                          }`}
+                          aria-label={`${month.label} ${month.year}: income ${money(month.income)}, expenses ${money(month.expenses)}`}
+                          onMouseEnter={() => setActiveMonth(month.key)}
+                          onFocus={() => setActiveMonth(month.key)}
+                          onClick={() => setActiveMonth(month.key)}
                         >
-                          <stop
-                            offset="0%"
-                            stopColor="#4385f5"
-                            stopOpacity=".20"
-                          />
-                          <stop
-                            offset="100%"
-                            stopColor="#4385f5"
-                            stopOpacity="0"
-                          />
-                        </linearGradient>
-                      </defs>
-
-                      <path
-                        d={`${monthlyChart.incomePath} L600 190 L0 190 Z`}
-                        fill="url(#incomeFill)"
-                      />
-
-                      <path
-                        d={monthlyChart.incomePath}
-                        fill="none"
-                        stroke="#4385f5"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        vectorEffect="non-scaling-stroke"
-                      />
-
-                      <path
-                        d={monthlyChart.expensePath}
-                        fill="none"
-                        stroke="#54c6a0"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        vectorEffect="non-scaling-stroke"
-                      />
-                    </svg>
+                          <div className="bar-pair">
+                            <span
+                              className="bar income-bar"
+                              style={{
+                                height: `${(month.income / monthlyChart.max) * 100}%`,
+                              }}
+                            />
+                            <span
+                              className="bar expense-bar"
+                              style={{
+                                height: `${(month.expenses / monthlyChart.max) * 100}%`,
+                              }}
+                            />
+                          </div>
+                          <span className="bar-label">{month.label}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
-                  <div className="chart-months">
-                    {monthlyChart.months.map((month) => (
-                      <span key={month.key}>{month.label}</span>
-                    ))}
+                  <div className="chart-readout">
+                    <strong>
+                      {selectedMonth.label} {selectedMonth.year}
+                    </strong>
+                    <span className="readout-income">
+                      Income {money(selectedMonth.income)}
+                    </span>
+                    <span className="readout-expense">
+                      Expenses {money(selectedMonth.expenses)}
+                    </span>
+                    <span
+                      className={
+                        selectedMonth.income - selectedMonth.expenses >= 0
+                          ? 'readout-net positive'
+                          : 'readout-net negative'
+                      }
+                    >
+                      Net {money(selectedMonth.income - selectedMonth.expenses)}
+                    </span>
                   </div>
 
                   <p className="chart-note">
