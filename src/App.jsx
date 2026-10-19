@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
-import './PesaFlow-overrides.css'
 
 const STORAGE_KEY = 'pesaflow-transactions'
 
