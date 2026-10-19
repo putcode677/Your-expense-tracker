@@ -455,49 +455,6 @@
 .income-legend { background: var(--blue); }
 .expense-legend { background: #54c6a0; }
 
-.chart-area {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  height: 210px;
-  margin-top: 16px;
-}
-
-.chart-gridline {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  height: 1px;
-}
-
-.chart-gridline span {
-  width: 40px;
-  color: #9ba9bd;
-  font-size: 12px;
-}
-
-.chart-gridline i {
-  flex: 1;
-  border-top: 1px dashed #d5dfed;
-}
-
-.line-chart {
-  position: absolute;
-  inset: 0 0 0 50px;
-  width: calc(100% - 50px);
-  height: 100%;
-  overflow: visible;
-}
-
-.chart-months {
-  display: flex;
-  justify-content: space-between;
-  margin: 12px 0 0 52px;
-  color: #91a0b5;
-  font-size: 13px;
-}
-
 .donut-wrap {
   display: grid;
   place-items: center;
