@@ -75,8 +75,47 @@ body, .app-shell {
   font: inherit;
   font-weight: 700;
 }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+.delete-button {
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: transparent;
+  cursor: pointer;
+}
+.delete-button:hover { background: #f8e8ec; }
+.toast {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #dcf6ed;
+  color: #1f7a5c;
+  font-size: 13px;
+  font-weight: 600;
+}
+.toast button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 20px;
+  cursor: pointer;
+}
 .logout-settings-button { margin-top: 16px; }
 @media (max-width: 600px) {
   .profile-dropdown { right: 0; }
   .logout-actions { flex-wrap: wrap; }
+}
+@media (max-width: 800px) {
+  .profile-dropdown { left: 0; right: auto; }
 }
